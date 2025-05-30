@@ -32,14 +32,16 @@ module.exports = function(upload) {
           firstName: req.body.firstName,
           previousName: req.body.previousName,
           nameChangeReason: req.body.nameChangeReason,
-          birthDetails: req.body.birthDetails,
+          birthDate: req.body.birthDate,
+          birthPlace: req.body.birthPlace,
           hometown: req.body.hometown,
           nationalityPresent: req.body.nationalityPresent,
           nationalityPrevious: req.body.nationalityPrevious,
           passportDetails: {
             type: req.body.passportType,
             number: req.body.passportNumber,
-            issueDetails: req.body.passportIssueDetails,
+            issuePlace: req.body.passportIssuePlace,
+            issueDate: req.body.passportIssueDate,
             expiry: req.body.passportExpiry
           },
           countriesVisited: req.body.countriesVisited,
@@ -77,6 +79,75 @@ module.exports = function(upload) {
       });
     }
   });
+
+
+    // Display personality form
+    router.get('/personality', isAuthenticated, (req, res) => {
+      res.render('form-personality', { user: req.session.user });
+    });
+  
+    // Handle form submission
+    router.post('/personality', isAuthenticated, upload.single('photo'), (req, res) => {
+      try {
+        // Extract all form data
+        const formData = {
+          userId: req.session.user.id,
+          armOfService: req.body.armOfService,
+          photo: req.file ? req.file.filename : null,
+          
+          personalDetails: {
+            surname: req.body.surname,
+            firstName: req.body.firstName,
+            previousName: req.body.previousName,
+            nameChangeReason: req.body.nameChangeReason,
+            birthDate: req.body.birthDate,
+            birthPlace: req.body.birthPlace,
+            hometown: req.body.hometown,
+            nationalityPresent: req.body.nationalityPresent,
+            nationalityPrevious: req.body.nationalityPrevious,
+            passportDetails: {
+              type: req.body.passportType,
+              number: req.body.passportNumber,
+              issuePlace: req.body.passportIssuePlace,
+              issueDate: req.body.passportIssueDate,
+              expiry: req.body.passportExpiry
+            },
+            countriesVisited: req.body.countriesVisited,
+            physicalCharacteristics: {
+              height: req.body.height,
+              complexion: req.body.complexion,
+              eyeColor: req.body.eyeColor,
+              hairColor: req.body.hairColor
+            },
+            occupation: req.body.occupation
+          },
+          
+          // ... include all other form sections as shown in previous example ...
+          
+          declaration: {
+            signature: req.body.signature,
+            date: req.body.declarationDate
+          }
+        };
+  
+        // Save submission with user ID
+        const submissionPath = path.join(
+          __dirname, '../submissions',
+          `${req.session.user.id}-${Date.now()}.json`
+        );
+        
+        fs.writeFileSync(submissionPath, JSON.stringify(formData, null, 2));
+        
+        res.redirect('/dashboard?success=true');
+      } catch (error) {
+        console.error('Error processing form submission:', error);
+        res.status(500).render('error', { 
+          error: 'Error processing your submission',
+          user: req.session.user 
+        });
+      }
+    });
+
 
   // View submitted forms
   router.get('/submissions', isAuthenticated, (req, res) => {
