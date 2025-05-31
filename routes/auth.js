@@ -1,53 +1,92 @@
-// routes/auth.js
 const express = require('express');
 const bcrypt = require('bcrypt');
 const pool = require('../db');
 
 const router = express.Router();
 
-// Register route (hash password)
+// Register route
 router.post('/register', async (req, res) => {
-  const { username, password, role } = req.body;
+  const { username, password, role, firstName, lastName, phoneNumber, email } = req.body;
+
+  console.log("Received form data:", req.body);
+
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
+
     const result = await pool.query(
-      'INSERT INTO users (username, password, role) VALUES ($1, $2, $3) RETURNING *',
-      [username, hashedPassword, role || 'data_entry']
+      `INSERT INTO users 
+        (username, password, role, first_name, last_name, phone_number, email) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7) 
+       RETURNING *`,
+      [username, hashedPassword, role || 'data_entry', firstName, lastName, phoneNumber, email]
     );
-    res.status(201).json({ user: result.rows[0] });
+
+    req.session.user = {
+      id: result.rows[0].id,
+      username: result.rows[0].username,
+      role: result.rows[0].role,
+      firstName: result.rows[0].first_name
+    };
+console.log('Received form data:', req.body);
+
+    console.log('✅ Registration successful. Redirecting to dashboard...');
+    res.redirect('/dashboard');
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Error registering user');
+    console.error('❌ Registration error:', err.message);
+    res.status(500).render('login', { error: 'Registration failed', shake: true });
   }
 });
 
-// Show the registration form
-router.get('/register', (req, res) => {
-  res.render('register'); // assumes you have views/register.ejs
-});
 
+// Show login/register page (combined form)
+router.get('/register', (req, res) => {
+  res.render('login');
+});
 
 router.get('/login', (req, res) => {
-  res.render('login');  // This will render views/login.ejs
+  res.render('login');
 });
 
-
-// Login route (verify password)
+// Login route
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
+
   try {
     const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
     const user = result.rows[0];
-    if (!user) return res.status(401).send('User not found');
+
+    if (!user) {
+      return res.status(401).render('login', {
+        error: 'Invalid username or password',
+        shake: true,
+        username
+      });
+    }
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(401).send('Invalid password');
+    if (!isMatch) {
+      return res.status(401).render('login', {
+        error: 'Invalid username or password',
+        shake: true,
+        username
+      });
+    }
 
-    req.session.user = { id: user.id, username: user.username, role: user.role };
-    res.send('Logged in successfully');
+    req.session.user = {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      firstName: user.first_name
+    };
+
+    res.redirect('/dashboard');
   } catch (err) {
     console.error(err);
-    res.status(500).send('Login error');
+    res.status(500).render('login', {
+      error: 'Login error. Please try again.',
+      shake: true,
+      username
+    });
   }
 });
 
